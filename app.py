@@ -529,7 +529,6 @@ def render_sidebar() -> str:
                 use_container_width=True,
             ):
                 st.session_state.main_nav = "Momentum Scanner"
-                st.rerun()
 
         with q2:
             if st.button(
@@ -538,7 +537,6 @@ def render_sidebar() -> str:
                 use_container_width=True,
             ):
                 st.session_state.main_nav = "Exit Intelligence"
-                st.rerun()
 
         # --- THIS IS THE FIX (added unsafe_allow_html=True) ---
         st.markdown(
