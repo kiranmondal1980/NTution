@@ -1,0 +1,177 @@
+"""
+NSE MOMENTUM 5™ — Master Streamlit Application Entry Point
+================================================================================
+3–5 Day NSE India Quantitative Momentum, Probability, Risk & Exit Intelligence System.
+
+PAGES SUPPORTED (13 ESSENTIAL PLATFORMS):
+ 1. Home / Market Overview        (Macro regime & systemic health)
+ 2. NSE Momentum Scanner          (Engine A: 0–100 Momentum Score & Probability)
+ 3. Stock Analysis Deep Dive      (Candlestick, 8-pillar breakdown, position sizing)
+ 4. Existing Holdings             (Engine B: Active positions, trailing protection)
+ 5. Exit Intelligence UI          (Standalone position evaluation & What-If tool)
+ 6. Backtest Lab                  (Chronologically strict portfolio simulation)
+ 7. Walk-Forward Results          (Rolling out-of-sample stability validation)
+ 8. Strategy Comparison           (Research leaderboard & model selection)
+ 9. Model Probability             (Machine learning training & probability hub)
+10. Risk Dashboard                (Portfolio heat governor & circuit breaker)
+11. Trade Journal                 (Relational trade ledger & CSV export)
+12. Settings & Data Sync          (Market data sync & universe management)
+13. System Health Diagnostics     (Database integrity, provider ping & logs)
+================================================================================
+"""
+
+from typing import Dict, Optional, Tuple
+import pandas as pd
+import streamlit as st
+
+from config import CONFIG
+from database.initialize import init_database
+from data.downloader import MarketDataDownloader
+from features import build_feature_pipeline
+from strategy.regime import MarketRegimeEngine
+
+# Dashboard View Renderers
+from dashboard.market_view import render_market_overview
+from dashboard.scanner_view import render_scanner_view
+from dashboard.stock_view import render_stock_analysis
+from dashboard.portfolio_view import render_portfolio_view
+from dashboard.exit_view import render_exit_view
+from dashboard.backtest_view import render_backtest_lab
+from dashboard.walk_forward_view import render_walk_forward_view
+from dashboard.strategy_comparison_view import render_strategy_comparison_view
+from dashboard.model_probability_view import render_model_probability_view
+from dashboard.risk_view import render_risk_view
+from dashboard.journal_view import render_journal_view
+from dashboard.settings_view import render_settings_view
+from dashboard.health_view import render_health_view
+
+# Page Configuration
+st.set_page_config(
+    page_title="NSE MOMENTUM 5™",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def load_and_engineer_universe() -> Tuple[Optional[pd.DataFrame], Dict[str, pd.DataFrame]]:
+    """
+    Loads historical bars from SQLite and executes the quantitative feature pipeline.
+    Cached for 30 minutes to maximize UI responsiveness.
+    """
+    downloader = MarketDataDownloader()
+    bench_df = downloader.load_ohlcv_from_db(CONFIG.universe.benchmark_symbol)
+
+    universe_features: Dict[str, pd.DataFrame] = {}
+    symbols = CONFIG.universe.default_symbols
+
+    for sym in symbols:
+        df = downloader.load_ohlcv_from_db(sym)
+        if df.empty or len(df) < 25:
+            continue
+
+        # Execute unified feature pipeline
+        pipeline_df = build_feature_pipeline(df, benchmark_df=bench_df)
+        universe_features[sym] = pipeline_df
+
+    return bench_df, universe_features
+
+
+def main():
+    # 1. Initialize Database Schema Safely
+    init_database()
+
+    # 2. Sidebar Branding & Navigation
+    st.sidebar.markdown("# ⚡ NSE MOMENTUM 5™")
+    st.sidebar.caption("3–5 Day Quantitative Momentum & Exit Intelligence System")
+
+    pages = [
+        "1. Home / Market Overview",
+        "2. NSE Momentum Scanner",
+        "3. Stock Analysis Deep Dive",
+        "4. Existing Holdings",
+        "5. Exit Intelligence UI",
+        "6. Backtest Lab",
+        "7. Walk-Forward Results",
+        "8. Strategy Comparison",
+        "9. Model Probability",
+        "10. Risk Dashboard",
+        "11. Trade Journal",
+        "12. Settings & Data Sync",
+        "13. System Health Diagnostics"
+    ]
+
+    choice = st.sidebar.radio("Platform Navigation:", pages)
+
+    # 3. Load Market Data & Features
+    with st.spinner("Loading market data and calculating technical factors..."):
+        bench_df, universe_features = load_and_engineer_universe()
+
+    # Calculate Current Market Regime Score
+    regime_score = 50.0
+    is_regime_permitted = True
+    if bench_df is not None and not bench_df.empty and len(bench_df) >= 20:
+        regime_engine = MarketRegimeEngine()
+        regime_state = regime_engine.evaluate_regime(bench_df, universe_features=universe_features)
+        regime_score = regime_state.regime_score
+        is_regime_permitted = regime_state.is_long_permitted
+
+    # 4. Mandatory Trading & Legal Disclaimer in Sidebar
+    st.sidebar.markdown("---")
+    st.sidebar.warning(
+        "⚠️ **LEGAL DISCLAIMER:**\n"
+        "This system is a quantitative decision-support tool. It does **NOT** guarantee profits or future returns. "
+        "Desired +15% to +20% upside targets are research targets, not predictions. "
+        "All trading carries financial risk."
+    )
+
+    # 5. Route to Selected View
+    if choice == "1. Home / Market Overview":
+        render_market_overview(bench_df, universe_features)
+
+    elif choice == "2. NSE Momentum Scanner":
+        render_scanner_view(universe_features, regime_score=regime_score)
+
+    elif choice == "3. Stock Analysis Deep Dive":
+        available_syms = sorted(list(universe_features.keys())) if universe_features else []
+        if not available_syms:
+            st.info("No universe data loaded. Sync data in Settings.")
+        else:
+            c1, _ = st.columns([1, 2])
+            selected_sym = c1.selectbox("Select Target Stock:", available_syms)
+            render_stock_analysis(selected_sym, universe_features[selected_sym], regime_score=regime_score)
+
+    elif choice == "4. Existing Holdings":
+        render_portfolio_view(universe_features, regime_score=regime_score)
+
+    elif choice == "5. Exit Intelligence UI":
+        render_exit_view(universe_features, regime_permitted=is_regime_permitted)
+
+    elif choice == "6. Backtest Lab":
+        render_backtest_lab(universe_features, benchmark_df=bench_df)
+
+    elif choice == "7. Walk-Forward Results":
+        render_walk_forward_view(universe_features, benchmark_df=bench_df)
+
+    elif choice == "8. Strategy Comparison":
+        render_strategy_comparison_view(universe_features, benchmark_df=bench_df)
+
+    elif choice == "9. Model Probability":
+        render_model_probability_view(universe_features)
+
+    elif choice == "10. Risk Dashboard":
+        render_risk_view(universe_features)
+
+    elif choice == "11. Trade Journal":
+        render_journal_view()
+
+    elif choice == "12. Settings & Data Sync":
+        render_settings_view()
+
+    elif choice == "13. System Health Diagnostics":
+        render_health_view()
+
+
+if __name__ == "__main__":
+    main()
