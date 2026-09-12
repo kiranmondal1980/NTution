@@ -2,21 +2,6 @@
 NSE MOMENTUM 5™ — Master Streamlit Application Entry Point
 ================================================================================
 3–5 Day NSE India Quantitative Momentum, Probability, Risk & Exit Intelligence System.
-
-PAGES SUPPORTED (13 ESSENTIAL PLATFORMS):
- 1. Home / Market Overview        (Macro regime & systemic health)
- 2. NSE Momentum Scanner          (Engine A: 0–100 Momentum Score & Probability)
- 3. Stock Analysis Deep Dive      (Candlestick, 8-pillar breakdown, position sizing)
- 4. Existing Holdings             (Engine B: Active positions, trailing protection)
- 5. Exit Intelligence UI          (Standalone position evaluation & What-If tool)
- 6. Backtest Lab                  (Chronologically strict portfolio simulation)
- 7. Walk-Forward Results          (Rolling out-of-sample stability validation)
- 8. Strategy Comparison           (Research leaderboard & model selection)
- 9. Model Probability             (Machine learning training & probability hub)
-10. Risk Dashboard                (Portfolio heat governor & circuit breaker)
-11. Trade Journal                 (Relational trade ledger & CSV export)
-12. Settings & Data Sync          (Market data sync & universe management)
-13. System Health Diagnostics     (Database integrity, provider ping & logs)
 ================================================================================
 """
 
@@ -44,6 +29,7 @@ from dashboard.risk_view import render_risk_view
 from dashboard.journal_view import render_journal_view
 from dashboard.settings_view import render_settings_view
 from dashboard.health_view import render_health_view
+from dashboard.help_view import render_help_view
 
 # Page Configuration
 st.set_page_config(
@@ -58,7 +44,6 @@ st.set_page_config(
 def load_and_engineer_universe() -> Tuple[Optional[pd.DataFrame], Dict[str, pd.DataFrame]]:
     """
     Loads historical bars from SQLite and executes the quantitative feature pipeline.
-    Cached for 30 minutes to maximize UI responsiveness.
     """
     downloader = MarketDataDownloader()
     bench_df = downloader.load_ohlcv_from_db(CONFIG.universe.benchmark_symbol)
@@ -71,7 +56,6 @@ def load_and_engineer_universe() -> Tuple[Optional[pd.DataFrame], Dict[str, pd.D
         if df.empty or len(df) < 25:
             continue
 
-        # Execute unified feature pipeline
         pipeline_df = build_feature_pipeline(df, benchmark_df=bench_df)
         universe_features[sym] = pipeline_df
 
@@ -82,7 +66,7 @@ def main():
     # 1. Initialize Database Schema Safely
     init_database()
 
-    # 2. Sidebar Branding & Navigation
+    # 2. Sidebar Branding & Navigation (Single Radio Widget)
     st.sidebar.markdown("# ⚡ NSE MOMENTUM 5™")
     st.sidebar.caption("3–5 Day Quantitative Momentum & Exit Intelligence System")
 
@@ -103,7 +87,7 @@ def main():
         "14. User Help & Guide"
     ]
 
-    choice = st.sidebar.radio("Platform Navigation:", pages)
+    choice = st.sidebar.radio("Navigation Menu", pages, key="main_nav_radio")
 
     # 3. Load Market Data & Features
     with st.spinner("Loading market data and calculating technical factors..."):
@@ -123,7 +107,6 @@ def main():
     st.sidebar.warning(
         "⚠️ **LEGAL DISCLAIMER:**\n"
         "This system is a quantitative decision-support tool. It does **NOT** guarantee profits or future returns. "
-        "Desired +15% to +20% upside targets are research targets, not predictions. "
         "All trading carries financial risk."
     )
 
@@ -174,12 +157,7 @@ def main():
         render_health_view()
 
     elif choice == "14. User Help & Guide":
-        from dashboard.help_view import render_help_view
         render_help_view()
-
-
-if __name__ == "__main__":
-    main()
 
 
 if __name__ == "__main__":
