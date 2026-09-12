@@ -1,10 +1,10 @@
-# NSE MOMENTUM 5™ — Streamlit Production UI & Server Configuration
+# NSE MOMENTUM 5™ — Streamlit Production UI & Server Configuration (Light Theme)
 
 [theme]
-primaryColor = "#00e676"
-backgroundColor = "#0e1117"
-secondaryBackgroundColor = "#1a1e29"
-textColor = "#ffffff"
+primaryColor = "#00897b"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f4f6f9"
+textColor = "#111111"
 font = "sans serif"
 
 [server]
