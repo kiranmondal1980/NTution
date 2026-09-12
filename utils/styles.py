@@ -1,8 +1,8 @@
 """
-NSE MOMENTUM 5™ — Professional Mobile & Desktop CSS Styling Engine
+NSE MOMENTUM 5™ — Professional Institutional UI Styling Engine
 ================================================================================
-Injects institutional CSS to guarantee a polished, responsive mobile UI
-with fluid tables, compact metric cards, and clean touch targets.
+Injected globally into Streamlit to hide raw file docstrings, enforce clean header
+typography, compact metric cards, and establish a professional trading terminal aesthetic.
 ================================================================================
 """
 
@@ -10,86 +10,81 @@ import streamlit as st
 
 
 def apply_custom_styling() -> None:
-    """Injects responsive CSS rules into the Streamlit app session."""
+    """Injects professional institutional CSS rules into the Streamlit app session."""
     st.markdown(
         """
         <style>
-        /* Hide redundant module docstring headers at the top of pages */
+        /* 1. COMPLETELY HIDE RAW MODULE DOCSTRING HEADERS AT TOP OF PAGES */
         .main .block-container > div:first-child h1:first-of-type {
             display: none !important;
         }
+        .main .block-container > div:first-child p:first-of-type {
+            display: none !important;
+        }
 
-        /* Global Mobile & Desktop Layout Adjustments */
+        /* 2. LAYOUT & PADDING */
         .block-container {
-            padding-top: 1rem;
-            padding-bottom: 2rem;
-            padding-left: 1rem;
-            padding-right: 1rem;
-            max-width: 100%;
+            padding-top: 1.5rem !important;
+            padding-bottom: 3rem !important;
+            padding-left: 2rem !important;
+            padding-right: 2rem !important;
+            max-width: 100% !important;
         }
 
-        /* Streamlit Header / Toolbar Cleanup */
-        header[data-testid="stHeader"] {
-            background-color: transparent;
-        }
-
-        /* Responsive Metric Cards */
+        /* 3. PROFESSIONAL CARD CONTAINERS & METRICS */
         [data-testid="stMetric"] {
             background-color: var(--secondary-background-color);
-            border: 1px solid rgba(120, 120, 120, 0.15);
-            padding: 12px 14px;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
-            margin-bottom: 8px;
+            border: 1px solid rgba(150, 150, 150, 0.18);
+            padding: 16px 18px !important;
+            border-radius: 8px !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.04);
         }
         [data-testid="stMetricLabel"] {
-            font-size: 0.8rem !important;
+            font-size: 0.82rem !important;
             font-weight: 600;
-            color: #555555;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #555555 !important;
         }
         [data-testid="stMetricValue"] {
-            font-size: 1.25rem !important;
+            font-size: 1.45rem !important;
             font-weight: 700;
         }
 
-        /* Responsive DataFrames / Tables */
-        [data-testid="stDataFrame"] {
-            width: 100%;
-            overflow-x: auto;
+        /* 4. EXPANDERS & FORM CONTROLS */
+        [data-testid="stExpander"] {
+            border: 1px solid rgba(150, 150, 150, 0.2);
             border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
         }
 
-        /* Professional Buttons & Inputs */
+        /* 5. TABLES & DATAFRAMES */
+        [data-testid="stDataFrame"] {
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid rgba(150, 150, 150, 0.15);
+        }
+
+        /* 6. BUTTONS */
         .stButton button {
-            width: 100%;
-            border-radius: 6px;
-            font-weight: 600;
-            padding-top: 0.5rem;
-            padding-bottom: 0.5rem;
-            background-color: #00897b;
-            color: white;
-        }
-        .stButton button:hover {
-            background-color: #00695c;
-            color: white;
+            border-radius: 6px !important;
+            font-weight: 600 !important;
+            padding: 0.5rem 1rem !important;
         }
 
-        /* Mobile Specific Overrides */
+        /* 7. MOBILE RESPONSIVE TWEAKS */
         @media (max-width: 768px) {
             .block-container {
-                padding-top: 0.5rem;
-                padding-left: 0.5rem;
-                padding-right: 0.5rem;
+                padding-top: 1rem !important;
+                padding-left: 0.75rem !important;
+                padding-right: 0.75rem !important;
             }
             [data-testid="stMetric"] {
-                padding: 8px 10px;
+                padding: 12px 14px !important;
             }
             [data-testid="stMetricValue"] {
-                font-size: 1.1rem !important;
+                font-size: 1.2rem !important;
             }
-            h1 { font-size: 1.4rem !important; }
-            h2 { font-size: 1.2rem !important; }
-            h3 { font-size: 1.0rem !important; }
         }
         </style>
         """,
