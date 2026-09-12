@@ -8,11 +8,6 @@ COLUMNS INCLUDED:
 Symbol, Entry Date, Entry Price, Current Price, Quantity, Invested Amount,
 Current Value, P&L (INR), P&L %, Highest Price, Trailing Stop, Momentum Score,
 Hold Score, Trend, Relative Strength, Risk Status, Recommended Action, and Reason.
-
-CAPABILITIES:
-1. Aggregate Portfolio KPIs (Total Invested, Current Value, Unrealized P&L, Heat)
-2. Manual Position Entry Form
-3. Instant Liquidation & Partial Booking Execution with Trade Journaling
 ================================================================================
 """
 
@@ -55,15 +50,19 @@ def render_portfolio_view(
 
             submitted = st.form_submit_button("Track Position")
             if submitted:
+                clean_s = new_sym.strip().upper()
+                if not clean_s.endswith(".NS") and not clean_s.startswith("^"):
+                    clean_s = f"{clean_s}.NS"
+
                 HoldingsManager.add_position(
-                    symbol=new_sym,
+                    symbol=clean_s,
                     entry_date=datetime.utcnow(),
                     entry_price=new_entry_p,
                     quantity=new_qty,
                     stop_loss=new_stop,
                     target_price=new_tgt if new_tgt > 0 else None
                 )
-                st.success(f"Added {new_sym} ({new_qty} shares) to active monitoring.")
+                st.success(f"Added {clean_s} ({new_qty} shares) to active monitoring.")
                 st.rerun()
 
     # --------------------------------------------------------------------------
@@ -85,14 +84,19 @@ def render_portfolio_view(
     total_unrealized_pnl = 0.0
 
     for pos in open_positions:
-        sym = pos["symbol"]
+        sym = pos["symbol"].strip().upper()
         qty = pos["quantity"]
         entry_p = pos["entry_price"]
         invested = entry_p * qty
         total_invested += invested
 
-        # Fetch latest technical bar
-        df_sym = universe_features.get(sym)
+        # Flexible lookup in universe features (matches 'ATGL.NS', 'ATGL', etc.)
+        df_sym = None
+        for k, v in universe_features.items():
+            if k.strip().upper() == sym or k.strip().upper().replace(".NS", "") == sym.replace(".NS", ""):
+                df_sym = v
+                break
+
         if df_sym is not None and not df_sym.empty:
             latest_bar = df_sym.iloc[-1]
             cur_p = float(latest_bar.get("close", entry_p))
@@ -118,7 +122,7 @@ def render_portfolio_view(
             symbol=sym,
             entry_price=entry_p,
             current_price=cur_p,
-            highest_price_since_entry=pos["highest_price_since_entry"],
+            highest_price_since_entry=max(pos["highest_price_since_entry"], cur_p),
             latest_features=latest_bar,
             user_hard_stop=pos["current_stop"],
             user_target=pos.get("target_price", 0.0)
@@ -133,10 +137,8 @@ def render_portfolio_view(
             exit_action=assessment.action.value
         )
 
-        # Risk status description
         risk_stat = "NORMAL" if assessment.action in [ExitAction.HOLD, ExitAction.TRAIL] else "ELEVATED" if assessment.action == ExitAction.PARTIAL_BOOK else "CRITICAL"
 
-        # Action formatting
         act_str = assessment.action.value
         if assessment.action == ExitAction.HOLD:
             act_badge = f"🟢 {act_str}"
