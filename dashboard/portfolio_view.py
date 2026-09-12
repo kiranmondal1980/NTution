@@ -1,10 +1,7 @@
 """
 NSE MOMENTUM 5™ — Dashboard Page 4: Existing Holdings Dashboard
 ================================================================================
-Comprehensive position monitoring dashboard displaying all columns required by
-the quantitative architecture:
-
-COLUMNS INCLUDED:
+Comprehensive position monitoring dashboard displaying all required columns:
 Symbol, Entry Date, Entry Price, Current Price, Quantity, Invested Amount,
 Current Value, P&L (INR), P&L %, Highest Price, Trailing Stop, Momentum Score,
 Hold Score, Trend, Relative Strength, Risk Status, Recommended Action, and Reason.
@@ -29,7 +26,7 @@ def render_portfolio_view(
     regime_score: float = 50.0
 ) -> None:
     """
-    Renders the active swing portfolio dashboard.
+    Renders the active swing portfolio dashboard with robust symbol matching.
     """
     st.markdown("## 💼 Existing Holdings Dashboard")
     st.caption("Real-time position monitoring, dynamic trailing protection, and trend health Hold Scores.")
@@ -66,7 +63,7 @@ def render_portfolio_view(
                 st.rerun()
 
     # --------------------------------------------------------------------------
-    # 2. Fetch Active Holdings & Technical Evaluations
+    # 2. Fetch Active Holdings & Robust Price Matching
     # --------------------------------------------------------------------------
     open_positions = HoldingsManager.get_open_positions()
 
@@ -84,17 +81,18 @@ def render_portfolio_view(
     total_unrealized_pnl = 0.0
 
     for pos in open_positions:
-        sym = pos["symbol"].strip().upper()
+        raw_sym = pos["symbol"].strip().upper()
         qty = pos["quantity"]
         entry_p = pos["entry_price"]
         invested = entry_p * qty
         total_invested += invested
 
-        # Flexible lookup in universe features (matches 'ATGL.NS', 'ATGL', etc.)
+        # AGGRESSIVE FUZZY SYMBOL LOOKUP (Checks raw, with .NS, without .NS)
         df_sym = None
-        for k, v in universe_features.items():
-            if k.strip().upper() == sym or k.strip().upper().replace(".NS", "") == sym.replace(".NS", ""):
-                df_sym = v
+        search_keys = [raw_sym, f"{raw_sym}.NS", raw_sym.replace(".NS", ""), f"{raw_sym.replace('.NS', '')}.NS"]
+        for key in search_keys:
+            if key in universe_features:
+                df_sym = universe_features[key]
                 break
 
         if df_sym is not None and not df_sym.empty:
@@ -106,8 +104,8 @@ def render_portfolio_view(
             mom_score = score_res["momentum_score"]
         else:
             latest_bar = pd.Series()
-            cur_p = entry_p
-            trend_desc = "N/A"
+            cur_p = entry_p  # Fallback if symbol data not synced yet
+            trend_desc = "DATA PENDING SYNC"
             rs_val = "0.0%"
             mom_score = 50.0
 
@@ -119,7 +117,7 @@ def render_portfolio_view(
 
         # Evaluate Exit Intelligence (Engine B)
         assessment = exit_engine.evaluate_position(
-            symbol=sym,
+            symbol=raw_sym,
             entry_price=entry_p,
             current_price=cur_p,
             highest_price_since_entry=max(pos["highest_price_since_entry"], cur_p),
@@ -151,7 +149,7 @@ def render_portfolio_view(
 
         holdings_table_rows.append({
             "ID": pos["id"],
-            "Symbol": sym.replace(".NS", ""),
+            "Symbol": raw_sym.replace(".NS", ""),
             "Entry Date": pos["entry_date"].strftime("%Y-%m-%d"),
             "Entry Price": round(entry_p, 2),
             "Current Price": round(cur_p, 2),
