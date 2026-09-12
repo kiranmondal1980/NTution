@@ -7,8 +7,8 @@ market bars from any `BaseDataProvider` into the relational SQLite database.
 Key Capabilities:
 1. Resilient Universe Sync: Iterates across symbols with error isolation.
 2. End-to-End Pipeline: Download -> Clean -> Validate -> Upsert.
-3. Upsert Logic: Seamlessly inserts new bars or updates existing records
-   without violating unique constraints on (symbol_id, timestamp).
+3. Robust Upsert Logic: Uses SQLAlchemy `.merge()` to prevent IntegrityErrors
+   on duplicate (symbol_id, timestamp) constraints.
 4. Fast In-Memory Loader: Fetches historical series from the database
    as standardized Pandas DataFrames for backtesting and scanning.
 ================================================================================
@@ -107,29 +107,25 @@ class MarketDataDownloader:
                     if not audit.is_valid:
                         logger.warning(f"Data audit warning for {symbol}: {audit.notes}")
 
-                    # 5. Upsert daily bars into database
-                    existing_records = session.query(DailyOHLCV).filter(
-                        DailyOHLCV.symbol_id == sym_obj.id,
-                        DailyOHLCV.timestamp >= start_date
-                    ).all()
-                    existing_map = {rec.timestamp: rec for rec in existing_records}
-
+                    # 5. Upsert daily bars using robust session query/merge
                     for ts, row in adj_df.iterrows():
                         dt_val = pd.to_datetime(ts).to_pydatetime()
                         adj_c = float(row.get("adj_close", row["close"]))
 
-                        if dt_val in existing_map:
-                            # Update existing record
-                            rec = existing_map[dt_val]
-                            rec.open = float(row["open"])
-                            rec.high = float(row["high"])
-                            rec.low = float(row["low"])
-                            rec.close = float(row["close"])
-                            rec.adj_close = adj_c
-                            rec.volume = float(row["volume"])
+                        existing = session.query(DailyOHLCV).filter(
+                            DailyOHLCV.symbol_id == sym_obj.id,
+                            DailyOHLCV.timestamp == dt_val
+                        ).first()
+
+                        if existing:
+                            existing.open = float(row["open"])
+                            existing.high = float(row["high"])
+                            existing.low = float(row["low"])
+                            existing.close = float(row["close"])
+                            existing.adj_close = adj_c
+                            existing.volume = float(row["volume"])
                             stats["total_updated"] += 1
                         else:
-                            # Insert new bar
                             new_rec = DailyOHLCV(
                                 symbol_id=sym_obj.id,
                                 timestamp=dt_val,
@@ -143,13 +139,13 @@ class MarketDataDownloader:
                             session.add(new_rec)
                             stats["total_inserted"] += 1
 
+                    session.commit()
                     stats["synced_count"] += 1
 
                 except Exception as exc:
+                    session.rollback()
                     logger.error(f"Error syncing data for {symbol}: {str(exc)}")
                     stats["failed_symbols"].append(symbol)
-
-            session.commit()
 
         logger.info(
             f"Universe sync completed. Synced: {stats['synced_count']}, "
