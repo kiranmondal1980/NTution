@@ -540,6 +540,7 @@ def render_sidebar() -> str:
                 st.session_state.main_nav = "Exit Intelligence"
                 st.rerun()
 
+        # --- THIS IS THE FIX (added unsafe_allow_html=True) ---
         st.markdown(
             """
             <div class="nm5-sidebar-footer">
@@ -557,7 +558,6 @@ def render_sidebar() -> str:
         )
 
     return st.session_state.main_nav
-
 
 # ============================================================
 # DATA STATUS BAR
