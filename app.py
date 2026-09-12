@@ -62,29 +62,17 @@ from dashboard.help_view import render_help_view
 # ============================================================
 # PAGE CONFIGURATION
 # ============================================================
-
 st.set_page_config(
     page_title="NSE MOMENTUM 5™",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
-    menu_items={
-        "Get Help": None,
-        "Report a bug": None,
-        "About": (
-            "NSE MOMENTUM 5™ — Quantitative NSE India "
-            "Momentum & Exit Intelligence System."
-        ),
-    },
 )
-
 
 # ============================================================
 # GLOBAL STYLING
 # ============================================================
-
 apply_custom_styling()
-
 
 # ============================================================
 # SESSION STATE
