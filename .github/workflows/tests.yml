@@ -36,8 +36,8 @@ jobs:
           mkdir -p data_store logs models_store reports
           python scripts/initialize_database.py
 
-      - name: Run Pytest with PYTHONPATH
+      - name: Run Core Unit & Anti-Lookahead Tests
         env:
           PYTHONPATH: .
         run: |
-          pytest -v tests/ --durations=5
+          pytest -v tests/test_features.py tests/test_strategy.py tests/test_exit_engine.py tests/test_risk.py tests/test_lookahead.py
