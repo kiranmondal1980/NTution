@@ -678,37 +678,99 @@ PAGE_DESCRIPTIONS = {
 # STOCK ANALYSIS ROUTER
 # ============================================================
 
+# ============================================================
+# STOCK ANALYSIS ROUTER (DYNAMIC / AD-HOC SUPPORT)
+# ============================================================
+
 def render_stock_page(
     universe_features: Dict[str, pd.DataFrame],
     regime_score: float,
 ) -> None:
-    """Render stock selection before the existing stock renderer."""
+    """Render stock selection with support for universe and ad-hoc symbols."""
 
-    available_symbols = sorted(
-        universe_features.keys()
-    )
+    available_symbols = sorted(universe_features.keys())
 
-    if not available_symbols:
-
-        st.warning(
-            "No engineered stock data is currently available."
-        )
-
-        st.info(
-            "Open Settings & Data Sync to load historical market data."
-        )
-
-        return
-
-    selected_symbol = st.selectbox(
-        "SELECT STOCK",
-        available_symbols,
-        key="stock_analysis_symbol",
+    # Mode selection: Preloaded Universe vs Custom Ad-Hoc Symbol
+    analysis_mode = st.radio(
+        "Select Analysis Mode",
+        ["Universe Stock", "Custom / Ad-Hoc Symbol Lookup"],
+        horizontal=True,
         label_visibility="collapsed",
     )
 
-    if selected_symbol:
+    selected_symbol = None
 
+    if analysis_mode == "Universe Stock":
+        if not available_symbols:
+            st.warning("No engineered stock data is currently available in the universe.")
+            st.info("Open Settings & Data Sync to load historical market data or use Custom Lookup below.")
+        else:
+            selected_symbol = st.selectbox(
+                "SELECT STOCK",
+                available_symbols,
+                key="stock_analysis_symbol",
+                label_visibility="collapsed",
+            )
+
+    else:
+        # Ad-hoc / Custom Stock Entry
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            custom_input = st.text_input(
+                "Enter NSE Symbol (e.g. ZOMATO.NS, RELIANCE.NS)",
+                value="",
+                placeholder="Type ticker and click Fetch...",
+                key="custom_stock_input"
+            ).strip().upper()
+        
+        with col2:
+            st.write("") # spacing
+            fetch_clicked = st.button("📥 Fetch & Analyze", use_container_width=True)
+
+        if custom_input:
+            if not custom_input.endswith(".NS") and not custom_input.endswith(".BO"):
+                # Automatically append .NS if user forgot
+                custom_input = f"{custom_input}.NS"
+
+            selected_symbol = custom_input
+
+            # Check if we already engineered it, otherwise fetch & build on the fly
+            if selected_symbol not in universe_features:
+                with st.spinner(f"Downloading & building features for {selected_symbol}..."):
+                    try:
+                        downloader = MarketDataDownloader()
+                        
+                        # Try loading from DB first, if not found download live/from source
+                        df = downloader.load_ohlcv_from_db(selected_symbol)
+                        
+                        if df is None or df.empty or len(df) < 25:
+                            # Attempt live download if supported by your downloader
+                            df = downloader.fetch_and_store_symbol(selected_symbol)
+
+                        if df is not None and not df.empty:
+                            benchmark_symbol = get_benchmark_symbol()
+                            bench_df = downloader.load_ohlcv_from_db(benchmark_symbol)
+                            
+                            pipeline_df = build_feature_pipeline(
+                                df,
+                                benchmark_df=bench_df,
+                            )
+                            
+                            if pipeline_df is not None and not pipeline_df.empty:
+                                universe_features[selected_symbol] = pipeline_df
+                                st.success(f"Successfully loaded and analyzed {selected_symbol}!")
+                            else:
+                                st.error(f"Feature pipeline returned empty data for {selected_symbol}.")
+                                selected_symbol = None
+                        else:
+                            st.error(f"Could not find sufficient historical data for ticker: {selected_symbol}. Check if symbol is correct.")
+                            selected_symbol = None
+                    except Exception as exc:
+                        st.error(f"Error loading {selected_symbol}: {exc}")
+                        selected_symbol = None
+
+    # Render analysis if a valid symbol is chosen and features exist
+    if selected_symbol and selected_symbol in universe_features:
         st.markdown(
             f"""
             <div class="nm5-selected-stock">
@@ -728,7 +790,6 @@ def render_stock_page(
             universe_features[selected_symbol],
             regime_score=regime_score,
         )
-
 
 # ============================================================
 # PAGE ROUTER
