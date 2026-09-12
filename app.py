@@ -39,6 +39,39 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+"""
+NSE MOMENTUM 5™ — Master Streamlit Application Entry Point
+================================================================================
+3–5 Day NSE India Quantitative Momentum, Probability, Risk & Exit Intelligence System.
+================================================================================
+"""
+
+from typing import Dict, Optional, Tuple
+import pandas as pd
+import streamlit as st
+
+from config import CONFIG
+from database.initialize import init_database
+from data.downloader import MarketDataDownloader
+from features import build_feature_pipeline
+from strategy.regime import MarketRegimeEngine
+from utils.styles import apply_custom_styling  # <--- Added import
+
+# Dashboard View Renderers
+from dashboard.market_view import render_market_overview
+...
+
+# Page Configuration
+st.set_page_config(
+    page_title="NSE MOMENTUM 5™",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Apply Professional Responsive CSS
+apply_custom_styling()  # <--- Added injection call
+
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def load_and_engineer_universe() -> Tuple[Optional[pd.DataFrame], Dict[str, pd.DataFrame]]:
