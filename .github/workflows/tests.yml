@@ -31,8 +31,9 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
-      - name: Initialize Relational Database Schema
+      - name: Initialize Database Schema & Test Directories
         run: |
+          mkdir -p data_store logs models_store reports
           python scripts/initialize_database.py
 
       - name: Execute Pytest Suite (Unit, Risk, Backtest & Anti-Lookahead)
