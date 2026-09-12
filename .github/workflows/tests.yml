@@ -20,22 +20,24 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+        uses: setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
 
-      - name: Install System & Python Dependencies
+      - name: Install Dependencies
         run: |
-          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest
 
-      - name: Initialize Database Schema & Test Directories
+      - name: Setup Folders and Initialize DB
         run: |
           mkdir -p data_store logs models_store reports
           python scripts/initialize_database.py
 
-      - name: Execute Pytest Suite (Unit, Risk, Backtest & Anti-Lookahead)
+      - name: Run Pytest with PYTHONPATH
+        env:
+          PYTHONPATH: .
         run: |
-          pytest -v tests/
+          pytest -v tests/ --durations=5
