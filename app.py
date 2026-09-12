@@ -404,56 +404,38 @@ def render_application_header(
     st.markdown(
         f"""
         <div class="nm5-topbar">
-
             <div class="nm5-brand">
                 <div class="nm5-logo">⚡</div>
-
                 <div>
                     <div class="nm5-brand-name">
                         NSE MOMENTUM 5<span class="nm5-tm">™</span>
                     </div>
-
                     <div class="nm5-brand-subtitle">
                         SHORT-TERM QUANTITATIVE TRADING TERMINAL
                     </div>
                 </div>
             </div>
-
             <div class="nm5-header-status">
-
                 <div class="nm5-status-item">
                     <span class="nm5-status-label">MARKET</span>
-                    <span class="nm5-status-value">
-                        {regime_label}
-                    </span>
+                    <span class="nm5-status-value">{regime_label}</span>
                 </div>
-
                 <div class="nm5-status-item">
                     <span class="nm5-status-label">REGIME SCORE</span>
-                    <span class="nm5-status-value">
-                        {regime_score:.0f}/100
-                    </span>
+                    <span class="nm5-status-value">{regime_score:.0f}/100</span>
                 </div>
-
                 <div class="nm5-status-item">
                     <span class="nm5-status-label">UNIVERSE</span>
-                    <span class="nm5-status-value">
-                        {symbol_count:,}
-                    </span>
+                    <span class="nm5-status-value">{symbol_count:,}</span>
                 </div>
-
                 <div class="nm5-status-item">
                     <span class="nm5-status-label">DATA</span>
-                    <span class="{status_class}">
-                        ● {data_status}
-                    </span>
+                    <span class="{status_class}">● {data_status}</span>
                 </div>
-
             </div>
-
         </div>
         """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # <--- CRITICAL FIX
     )
 
 
