@@ -172,10 +172,14 @@ def main():
 
     elif choice == "13. System Health Diagnostics":
         render_health_view()
-     
-     elif choice == "14. User Help & Guide":
+
+    elif choice == "14. User Help & Guide":
         from dashboard.help_view import render_help_view
         render_help_view()
+
+
+if __name__ == "__main__":
+    main()
 
 
 if __name__ == "__main__":
