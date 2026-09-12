@@ -646,16 +646,14 @@ def render_page_heading(
                 <div class="nm5-page-kicker">
                     NSE MOMENTUM 5™
                 </div>
-
                 <h1>{page_name}</h1>
-
                 <div class="nm5-page-description">
                     {description}
                 </div>
             </div>
         </div>
         """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # <--- CRITICAL FIX
     )
 
 
@@ -933,25 +931,21 @@ def render_footer() -> None:
     st.markdown(
         f"""
         <div class="nm5-footer">
-
             <div>
                 <strong>NSE MOMENTUM 5™</strong>
                 &nbsp;|&nbsp;
                 Quantitative Research & Decision Support
             </div>
-
             <div>
                 © {current_year}
                 &nbsp;•&nbsp;
                 Historical performance is not indicative
                 of future results.
             </div>
-
         </div>
         """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True,  # <--- CRITICAL FIX
     )
-
 
 # ============================================================
 # MAIN APPLICATION
