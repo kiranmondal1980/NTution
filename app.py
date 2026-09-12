@@ -99,7 +99,8 @@ def main():
         "10. Risk Dashboard",
         "11. Trade Journal",
         "12. Settings & Data Sync",
-        "13. System Health Diagnostics"
+        "13. System Health Diagnostics",
+        "14. User Help & Guide"
     ]
 
     choice = st.sidebar.radio("Platform Navigation:", pages)
@@ -171,6 +172,10 @@ def main():
 
     elif choice == "13. System Health Diagnostics":
         render_health_view()
+     
+     elif choice == "14. User Help & Guide":
+        from dashboard.help_view import render_help_view
+        render_help_view()
 
 
 if __name__ == "__main__":
