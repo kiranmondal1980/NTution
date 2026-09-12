@@ -92,7 +92,7 @@ class TestRiskEngine(unittest.TestCase):
         )
 
         self.assertFalse(check["is_allowed"])
-        self.assertTrue(any("Max position limit" in r for r in check["reasons"]))
+        self.assertTrue(any("MAX POSITION LIMIT REACHED" in r for r in check["reasons"]))
 
     def test_daily_circuit_breaker_enforcement(self):
         """Portfolio governor must halt all new trading if daily loss exceeds 3%."""
