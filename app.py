@@ -14,6 +14,7 @@ from database.initialize import init_database
 from data.downloader import MarketDataDownloader
 from features import build_feature_pipeline
 from strategy.regime import MarketRegimeEngine
+from utils.styles import apply_custom_styling
 
 # Dashboard View Renderers
 from dashboard.market_view import render_market_overview
@@ -39,45 +40,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-"""
-NSE MOMENTUM 5™ — Master Streamlit Application Entry Point
-================================================================================
-3–5 Day NSE India Quantitative Momentum, Probability, Risk & Exit Intelligence System.
-================================================================================
-"""
-
-from typing import Dict, Optional, Tuple
-import pandas as pd
-import streamlit as st
-
-from config import CONFIG
-from database.initialize import init_database
-from data.downloader import MarketDataDownloader
-from features import build_feature_pipeline
-from strategy.regime import MarketRegimeEngine
-from utils.styles import apply_custom_styling  # <--- Added import
-
-# Dashboard View Renderers
-from dashboard.market_view import render_market_overview
-...
-
-# Page Configuration
-st.set_page_config(
-    page_title="NSE MOMENTUM 5™",
-    page_icon="⚡",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
-
-# Apply Professional Responsive CSS
-apply_custom_styling()  # <--- Added injection call
+# Apply Professional UI Styling
+apply_custom_styling()
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
 def load_and_engineer_universe() -> Tuple[Optional[pd.DataFrame], Dict[str, pd.DataFrame]]:
-    """
-    Loads historical bars from SQLite and executes the quantitative feature pipeline.
-    """
     downloader = MarketDataDownloader()
     bench_df = downloader.load_ohlcv_from_db(CONFIG.universe.benchmark_symbol)
 
@@ -88,7 +56,6 @@ def load_and_engineer_universe() -> Tuple[Optional[pd.DataFrame], Dict[str, pd.D
         df = downloader.load_ohlcv_from_db(sym)
         if df.empty or len(df) < 25:
             continue
-
         pipeline_df = build_feature_pipeline(df, benchmark_df=bench_df)
         universe_features[sym] = pipeline_df
 
@@ -96,12 +63,11 @@ def load_and_engineer_universe() -> Tuple[Optional[pd.DataFrame], Dict[str, pd.D
 
 
 def main():
-    # 1. Initialize Database Schema Safely
     init_database()
 
-    # 2. Sidebar Branding & Navigation (Single Radio Widget)
+    # Sidebar Navigation
     st.sidebar.markdown("# ⚡ NSE MOMENTUM 5™")
-    st.sidebar.caption("3–5 Day Quantitative Momentum & Exit Intelligence System")
+    st.sidebar.caption("Institutional Swing Trading System")
 
     pages = [
         "1. Home / Market Overview",
@@ -122,11 +88,9 @@ def main():
 
     choice = st.sidebar.radio("Navigation Menu", pages, key="main_nav_radio")
 
-    # 3. Load Market Data & Features
-    with st.spinner("Loading market data and calculating technical factors..."):
+    with st.spinner("Loading market data and calculating factors..."):
         bench_df, universe_features = load_and_engineer_universe()
 
-    # Calculate Current Market Regime Score
     regime_score = 50.0
     is_regime_permitted = True
     if bench_df is not None and not bench_df.empty and len(bench_df) >= 20:
@@ -135,21 +99,17 @@ def main():
         regime_score = regime_state.regime_score
         is_regime_permitted = regime_state.is_long_permitted
 
-    # 4. Mandatory Trading & Legal Disclaimer in Sidebar
     st.sidebar.markdown("---")
     st.sidebar.warning(
         "⚠️ **LEGAL DISCLAIMER:**\n"
-        "This system is a quantitative decision-support tool. It does **NOT** guarantee profits or future returns. "
-        "All trading carries financial risk."
+        "Quantitative research tool. Does not guarantee profits. All trading carries risk."
     )
 
-    # 5. Route to Selected View
+    # Route to Selected View (NO master title rendered above)
     if choice == "1. Home / Market Overview":
         render_market_overview(bench_df, universe_features)
-
     elif choice == "2. NSE Momentum Scanner":
         render_scanner_view(universe_features, regime_score=regime_score)
-
     elif choice == "3. Stock Analysis Deep Dive":
         available_syms = sorted(list(universe_features.keys())) if universe_features else []
         if not available_syms:
@@ -158,37 +118,26 @@ def main():
             c1, _ = st.columns([1, 2])
             selected_sym = c1.selectbox("Select Target Stock:", available_syms)
             render_stock_analysis(selected_sym, universe_features[selected_sym], regime_score=regime_score)
-
     elif choice == "4. Existing Holdings":
         render_portfolio_view(universe_features, regime_score=regime_score)
-
     elif choice == "5. Exit Intelligence UI":
         render_exit_view(universe_features, regime_permitted=is_regime_permitted)
-
     elif choice == "6. Backtest Lab":
         render_backtest_lab(universe_features, benchmark_df=bench_df)
-
     elif choice == "7. Walk-Forward Results":
         render_walk_forward_view(universe_features, benchmark_df=bench_df)
-
     elif choice == "8. Strategy Comparison":
-        render_strategy_comparison_view(universe_features, benchmark_df=bench_df)
-
+        render_strategy_comparison_view(universe_features, benchmark_df=benchmark_df)
     elif choice == "9. Model Probability":
         render_model_probability_view(universe_features)
-
     elif choice == "10. Risk Dashboard":
         render_risk_view(universe_features)
-
     elif choice == "11. Trade Journal":
         render_journal_view()
-
     elif choice == "12. Settings & Data Sync":
         render_settings_view()
-
     elif choice == "13. System Health Diagnostics":
         render_health_view()
-
     elif choice == "14. User Help & Guide":
         render_help_view()
 
