@@ -435,9 +435,8 @@ def render_application_header(
             </div>
         </div>
         """,
-        unsafe_allow_html=True,  # <--- CRITICAL FIX
+        unsafe_allow_html=True,
     )
-
 
 # ============================================================
 # SIDEBAR
