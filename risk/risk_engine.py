@@ -1,115 +1,178 @@
 """
-NSE MOMENTUM 5™ — Unit Test Suite: Position Sizing & Portfolio Risk Governance
+NSE MOMENTUM 5™ — Portfolio Risk Intelligence & Capital Governor
 ================================================================================
-Verifies mathematical correctness of capital allocation and safety limits:
-1. Exact Rupee Risk position sizing: Shares = floor(Max Rupee Risk / Stop Distance)
-2. Single-stock position capital weighting cap (20.0% max equity)
-3. Input validation: Inverted stops, non-positive prices, zero shares
-4. Portfolio heat governor: Enforces 6.0% aggregate rupee risk cap
-5. Maximum simultaneous open positions limit (5 positions)
-6. Daily loss circuit breaker shutdown (3.0% drawdown limit)
+Monitors aggregate portfolio heat, correlation cluster risk, concurrent
+position counts, and daily circuit breaker loss thresholds.
+
+Core Safety Policies Enforced:
+1. Maximum Concurrent Positions: Caps total simultaneous open swing trades (default 5).
+2. Portfolio Heat Limit: Cumulative rupee risk across all open positions cannot
+   exceed `max_portfolio_risk_pct` (default 6.0% of total capital).
+3. Intraday Circuit Breaker: If cumulative daily realized/unrealized loss exceeds
+   `max_daily_portfolio_loss_pct` (default 3.0%), all new entries are locked.
+4. Position Exposure Cap: No single position can exceed 20.0% of total equity.
 ================================================================================
 """
 
-import unittest
-from risk.position_sizing import PositionSizer
-from risk.risk_engine import PortfolioRiskEngine
-from config import CONFIG
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Any
+from config import CONFIG, RiskConfig
+from utils.logger import setup_logger
+
+logger = setup_logger("PORTFOLIO_RISK_ENGINE")
 
 
-class TestRiskEngine(unittest.TestCase):
-    """Test suite for position sizing and portfolio risk management."""
+@dataclass(frozen=True)
+class PortfolioRiskSnapshot:
+    """Current risk health metrics for the overall trading account."""
+    total_equity_inr: float
+    invested_capital_inr: float
+    cash_available_inr: float
+    open_positions_count: int
+    max_positions_allowed: int
+    total_portfolio_heat_inr: float
+    total_portfolio_heat_pct: float
+    daily_realized_pnl_inr: float
+    is_circuit_breaker_active: bool
+    can_open_new_trade: bool
+    risk_warnings: List[str] = field(default_factory=list)
 
-    def setUp(self):
-        """Initializes sizer and risk engine instances."""
-        self.sizer = PositionSizer()
-        self.risk_engine = PortfolioRiskEngine()
-        self.test_capital = 1_000_000.0  # 10 Lakhs INR
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "total_equity_inr": round(self.total_equity_inr, 2),
+            "invested_capital_inr": round(self.invested_capital_inr, 2),
+            "cash_available_inr": round(self.cash_available_inr, 2),
+            "open_positions_count": self.open_positions_count,
+            "max_positions_allowed": self.max_positions_allowed,
+            "total_portfolio_heat_inr": round(self.total_portfolio_heat_inr, 2),
+            "total_portfolio_heat_pct": round(self.total_portfolio_heat_pct, 2),
+            "daily_realized_pnl_inr": round(self.daily_realized_pnl_inr, 2),
+            "is_circuit_breaker_active": self.is_circuit_breaker_active,
+            "can_open_new_trade": self.can_open_new_trade,
+            "risk_warnings": self.risk_warnings
+        }
 
-    def test_exact_rupee_risk_sizing(self):
+
+class PortfolioRiskEngine:
+    """Central risk governor protecting portfolio equity against catastrophic drawdowns."""
+
+    def __init__(self, risk_cfg: Optional[RiskConfig] = None):
+        self.cfg: RiskConfig = risk_cfg or CONFIG.risk
+
+    def evaluate_portfolio_state(
+        self,
+        total_equity_inr: float,
+        open_positions: List[Dict[str, Any]],
+        daily_realized_pnl_inr: float = 0.0
+    ) -> PortfolioRiskSnapshot:
         """
-        Verify mathematical sizing:
-        Capital = 1,000,000 INR, Risk = 1% = 10,000 INR
-        Entry = 100.0 INR, Stop = 90.0 INR -> Stop Distance = 10.0 INR
-        Expected Shares = floor(10,000 / 10) = 1,000 shares
+        Calculates aggregate portfolio heat, invested exposure, and circuit breaker status.
         """
-        res = self.sizer.calculate_position(
-            capital_inr=self.test_capital,
-            entry_price=100.0,
-            stop_loss_price=90.0,
-            risk_per_trade_pct=0.01
+        warnings: List[str] = []
+
+        invested_cap = 0.0
+        total_heat_inr = 0.0
+
+        for pos in open_positions:
+            qty = pos.get("quantity", 0)
+            cur_p = pos.get("current_price", pos.get("entry_price", 0.0))
+            stop_p = pos.get("current_stop", pos.get("entry_price", 0.0) * 0.95)
+
+            pos_val = qty * cur_p
+            invested_cap += pos_val
+
+            stop_dist = max(0.0, cur_p - stop_p)
+            pos_risk = qty * stop_dist
+            total_heat_inr += pos_risk
+
+        cash_avail = max(0.0, total_equity_inr - invested_cap)
+        heat_pct = (total_heat_inr / total_equity_inr * 100.0) if total_equity_inr > 0 else 0.0
+
+        max_daily_allowable_loss = total_equity_inr * self.cfg.max_daily_portfolio_loss_pct
+        circuit_breaker_hit = daily_realized_pnl_inr < -max_daily_allowable_loss
+
+        if circuit_breaker_hit:
+            warnings.append(
+                f"DAILY CIRCUIT BREAKER ACTIVE: Realized loss (INR {daily_realized_pnl_inr:.2f}) "
+                f"exceeds daily threshold (INR {max_daily_allowable_loss:.2f})."
+            )
+
+        pos_count = len(open_positions)
+        at_max_positions = pos_count >= self.cfg.max_simultaneous_positions
+        if at_max_positions:
+            warnings.append(
+                f"MAX POSITION LIMIT REACHED: {pos_count}/{self.cfg.max_simultaneous_positions} concurrent positions active."
+            )
+
+        max_heat_pct = self.cfg.max_portfolio_risk_pct * 100.0
+        if heat_pct >= max_heat_pct:
+            warnings.append(
+                f"PORTFOLIO HEAT CAP EXCEEDED: Aggregate risk ({heat_pct:.2f}%) exceeds limit ({max_heat_pct:.1f}%)."
+            )
+
+        can_open = (
+            not circuit_breaker_hit and
+            not at_max_positions and
+            (heat_pct < max_heat_pct) and
+            (cash_avail > 0)
         )
 
-        self.assertTrue(res.is_permitted)
-        self.assertEqual(res.shares, 1000)
-        self.assertEqual(res.rupee_risk_allocated, 10000.0)
-        self.assertEqual(res.position_value_inr, 100000.0)
-        self.assertEqual(res.portfolio_weight_pct, 10.0)
+        return PortfolioRiskSnapshot(
+            total_equity_inr=total_equity_inr,
+            invested_capital_inr=invested_cap,
+            cash_available_inr=cash_avail,
+            open_positions_count=pos_count,
+            max_positions_allowed=self.cfg.max_simultaneous_positions,
+            total_portfolio_heat_inr=total_heat_inr,
+            total_portfolio_heat_pct=heat_pct,
+            daily_realized_pnl_inr=daily_realized_pnl_inr,
+            is_circuit_breaker_active=circuit_breaker_hit,
+            can_open_new_trade=can_open,
+            risk_warnings=warnings
+        )
 
-    def test_single_position_capital_cap_enforcement(self):
+    def validate_new_trade(
+        self,
+        total_equity_inr: float,
+        open_positions: List[Dict[str, Any]],
+        proposed_position_val_inr: float,
+        proposed_trade_risk_inr: float,
+        daily_realized_pnl_inr: float = 0.0
+    ) -> Dict[str, Any]:
         """
-        When stop loss is very tight, position value cannot exceed max weight cap (20%).
-        Capital = 1,000,000 INR -> Max Position Value = 200,000 INR
-        Entry = 100.0 INR, Stop = 99.5 INR -> Stop Dist = 0.5 INR
-        Raw risk shares = 10,000 / 0.5 = 20,000 shares (Value 2,000,000 INR, 200% capital)
-        Capped shares = floor(200,000 / 100) = 2,000 shares (Value 200,000 INR)
+        Validates if a proposed new trade can be executed without violating safety limits.
         """
-        res = self.sizer.calculate_position(
-            capital_inr=self.test_capital,
-            entry_price=100.0,
-            stop_loss_price=99.5,
-            risk_per_trade_pct=0.01,
-            max_weight_pct=0.20
+        snapshot = self.evaluate_portfolio_state(
+            total_equity_inr, open_positions, daily_realized_pnl_inr
         )
 
-        self.assertTrue(res.is_permitted)
-        self.assertEqual(res.shares, 2000)
-        self.assertEqual(res.position_value_inr, 200000.0)
-        self.assertEqual(res.portfolio_weight_pct, 20.0)
+        if not snapshot.can_open_new_trade:
+            return {"is_allowed": False, "reasons": snapshot.risk_warnings}
 
-    def test_invalid_price_inputs_rejection(self):
-        """Rejects inverted stops where Stop Loss >= Entry Price."""
-        res_inverted = self.sizer.calculate_position(
-            capital_inr=self.test_capital,
-            entry_price=100.0,
-            stop_loss_price=105.0
-        )
-        self.assertFalse(res_inverted.is_permitted)
-        self.assertIn("must be strictly below", res_inverted.rejection_reason)
+        reasons: List[str] = []
 
-    def test_max_simultaneous_positions_limit(self):
-        """Portfolio governor must block new trades when 5 positions are already open."""
-        mock_positions = [
-            {"symbol": f"SYM_{i}.NS", "entry_price": 500.0, "current_price": 510.0, "quantity": 10, "current_stop": 480.0}
-            for i in range(5)
-        ]
+        max_single_position = total_equity_inr * self.cfg.max_position_weight_pct
+        if proposed_position_val_inr > max_single_position:
+            reasons.append(
+                f"Proposed trade value (INR {proposed_position_val_inr:.2f}) exceeds single stock cap "
+                f"(INR {max_single_position:.2f} / {self.cfg.max_position_weight_pct*100:.0f}%)."
+            )
 
-        check = self.risk_engine.validate_new_trade(
-            total_equity_inr=self.test_capital,
-            open_positions=mock_positions,
-            proposed_position_val_inr=50000.0,
-            proposed_trade_risk_inr=5000.0
-        )
+        new_total_heat = snapshot.total_portfolio_heat_inr + proposed_trade_risk_inr
+        max_heat_inr = total_equity_inr * self.cfg.max_portfolio_risk_pct
+        if new_total_heat > max_heat_inr:
+            reasons.append(
+                f"Adding this trade increases portfolio heat to INR {new_total_heat:.2f} ({new_total_heat/total_equity_inr*100:.2f}%), "
+                f"exceeding max allowable heat of INR {max_heat_inr:.2f} ({self.cfg.max_portfolio_risk_pct*100:.1f}%)."
+            )
 
-        self.assertFalse(check["is_allowed"])
-        self.assertTrue(any("MAX POSITION LIMIT REACHED" in r for r in check["reasons"]))
+        if proposed_position_val_inr > snapshot.cash_available_inr:
+            reasons.append(
+                f"Insufficient unallocated cash: Required INR {proposed_position_val_inr:.2f}, "
+                f"Available INR {snapshot.cash_available_inr:.2f}."
+            )
 
-    def test_daily_circuit_breaker_enforcement(self):
-        """Portfolio governor must halt all new trading if daily loss exceeds 3%."""
-        max_loss = self.test_capital * 0.03  # 30,000 INR
-        daily_loss = -35000.0                # Exceeded limit
-
-        check = self.risk_engine.validate_new_trade(
-            total_equity_inr=self.test_capital,
-            open_positions=[],
-            proposed_position_val_inr=50000.0,
-            proposed_trade_risk_inr=5000.0,
-            daily_realized_pnl_inr=daily_loss
-        )
-
-        self.assertFalse(check["is_allowed"])
-        self.assertTrue(any("CIRCUIT BREAKER" in r for r in check["reasons"]))
-
-
-if __name__ == "__main__":
-    unittest.main()
+        return {
+            "is_allowed": (len(reasons) == 0),
+            "reasons": reasons
+        }
